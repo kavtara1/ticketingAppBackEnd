@@ -1,0 +1,1195 @@
+openapi: 3.0.3
+info:
+  title: Ticketing API
+  version: 1.0.0
+  description: API documentation for the ticketing backend.
+paths:
+  /api/schema/:
+    get:
+      operationId: schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - ht
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - schema
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/ticketing/auth/change-password/:
+    post:
+      operationId: ticketing_auth_change_password_create
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangePassword'
+          description: ''
+  /api/ticketing/auth/login/:
+    post:
+      operationId: ticketing_auth_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/ticketing/auth/me/:
+    get:
+      operationId: ticketing_auth_me_retrieve
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+          description: ''
+  /api/ticketing/auth/register/:
+    post:
+      operationId: ticketing_auth_register_create
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterUser'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterUser'
+          description: ''
+  /api/ticketing/auth/token/refresh/:
+    post:
+      operationId: ticketing_auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/ticketing/auth/token/validate/:
+    post:
+      operationId: ticketing_auth_token_validate_create
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenValidate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenValidate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenValidate'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenValidate'
+          description: ''
+  /api/ticketing/tickets/:
+    get:
+      operationId: ticketing_tickets_retrieve
+      parameters:
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CLOSED
+          - OPEN
+        description: Optional ticket status filter.
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+          description: ''
+  /api/ticketing/tickets/{ticket_id}/assignment/:
+    patch:
+      operationId: ticketing_tickets_assignment_partial_update
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTicketAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTicketAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTicketAssignment'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketAssignment'
+          description: ''
+  /api/ticketing/tickets/{ticket_id}/close/:
+    patch:
+      operationId: ticketing_tickets_close_partial_update
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        description: Ticket ID to close.
+        required: true
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTicket'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTicket'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTicket'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+          description: ''
+  /api/ticketing/tickets/{ticket_id}/comments/:
+    get:
+      operationId: ticketing_tickets_comments_retrieve
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketComment'
+          description: ''
+    post:
+      operationId: ticketing_tickets_comments_create
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketComment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TicketComment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TicketComment'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketComment'
+          description: ''
+  /api/ticketing/tickets/assigned/:
+    get:
+      operationId: ticketing_tickets_assigned_retrieve
+      parameters:
+      - in: query
+        name: assignedDepartment
+        schema:
+          type: string
+          enum:
+          - Servicenet
+          - Telephonegram
+          - ccsupportfix
+        description: Return only tickets assigned to this department.
+        required: true
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CLOSED
+          - OPEN
+        description: Optional ticket status filter.
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Telephonegram'
+          description: ''
+  /api/ticketing/tickets/region/:
+    get:
+      operationId: ticketing_tickets_region_retrieve
+      parameters:
+      - in: query
+        name: region
+        schema:
+          type: string
+          enum:
+          - აჭარა
+          - გურია
+          - თბილისი
+          - იმერეთი
+          - კახეთი
+          - მცხეთა-მთიანეთი
+          - რაჭა-ლეჩხუმი
+          - სამეგრელო-ზემო სვანეთი
+          - სამცხე-ჯავახეთი
+          - ქვემო ქართლი
+          - შიდა ქართლი
+        description: Return only tickets in this region.
+        required: true
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CLOSED
+          - OPEN
+        description: Optional ticket status filter.
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Telephonegram'
+          description: ''
+  /api/ticketing/tickets/telephonegrams/:
+    get:
+      operationId: ticketing_tickets_telephonegrams_retrieve
+      parameters:
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CLOSED
+          - OPEN
+        description: Optional ticket status filter.
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Telephonegram'
+          description: ''
+    post:
+      operationId: ticketing_tickets_telephonegrams_create
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Telephonegram'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Telephonegram'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Telephonegram'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Telephonegram'
+          description: ''
+  /api/ticketing/tickets/telephonegrams/{ticket_id}/:
+    get:
+      operationId: ticketing_tickets_telephonegrams_retrieve_2
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        description: Ticket ID linked to the Telephonegram record.
+        required: true
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Telephonegram'
+          description: ''
+    patch:
+      operationId: ticketing_tickets_telephonegrams_partial_update
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        description: Ticket ID linked to the Telephonegram record.
+        required: true
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTelephonegram'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTelephonegram'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTelephonegram'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Telephonegram'
+          description: ''
+    delete:
+      operationId: ticketing_tickets_telephonegrams_destroy
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: integer
+        description: Ticket ID linked to the Telephonegram record.
+        required: true
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/ticketing/users/:
+    get:
+      operationId: ticketing_users_list
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserList'
+          description: ''
+  /api/ticketing/users/{user_id}/:
+    get:
+      operationId: ticketing_users_retrieve
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    put:
+      operationId: ticketing_users_update
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    patch:
+      operationId: ticketing_users_partial_update
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    delete:
+      operationId: ticketing_users_destroy
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    AssignedDepartmentEnum:
+      enum:
+      - ccsupportfix
+      - Telephonegram
+      - Servicenet
+      type: string
+      description: |-
+        * `ccsupportfix` - ccsupportfix
+        * `Telephonegram` - Telephonegram
+        * `Servicenet` - Servicenet
+    ChangePassword:
+      type: object
+      properties:
+        oldPassword:
+          type: string
+          writeOnly: true
+        newPassword:
+          type: string
+          writeOnly: true
+      required:
+      - newPassword
+      - oldPassword
+    DepartmentEnum:
+      enum:
+      - ccsupportfix
+      - Telephonegram
+      - Servicenet
+      type: string
+      description: |-
+        * `ccsupportfix` - ccsupportfix
+        * `Telephonegram` - Telephonegram
+        * `Servicenet` - Servicenet
+    PatchedTelephonegram:
+      type: object
+      properties:
+        telephonegramId:
+          type: integer
+        ticketId:
+          type: integer
+          readOnly: true
+        region:
+          $ref: '#/components/schemas/RegionEnum'
+        address:
+          type: string
+          maxLength: 255
+        roadSurface:
+          type: string
+        responsiblePerson:
+          type: string
+        contactPhone:
+          type: string
+        time:
+          type: string
+          maxLength: 100
+        sender:
+          type: string
+          maxLength: 255
+        sendTo:
+          type: string
+        comment:
+          type: string
+        author:
+          type: string
+          readOnly: true
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketComment'
+          readOnly: true
+        originDepartment:
+          type: string
+          readOnly: true
+        assignedDepartment:
+          type: string
+          readOnly: true
+        createdDate:
+          type: string
+          format: date-time
+          readOnly: true
+        lastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedTicket:
+      type: object
+      properties:
+        ticketId:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        originDepartment:
+          type: string
+          readOnly: true
+        assignedDepartment:
+          type: string
+          readOnly: true
+        author:
+          type: string
+          readOnly: true
+        telephonegramId:
+          type: integer
+          nullable: true
+          readOnly: true
+        region:
+          type: string
+          nullable: true
+          readOnly: true
+        createdDate:
+          type: string
+          format: date-time
+          readOnly: true
+        lastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedTicketAssignment:
+      type: object
+      properties:
+        ticketId:
+          type: integer
+          readOnly: true
+        originDepartment:
+          type: string
+          readOnly: true
+        assignedDepartment:
+          $ref: '#/components/schemas/AssignedDepartmentEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+    PatchedUserUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 150
+        lastName:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+        department:
+          $ref: '#/components/schemas/DepartmentEnum'
+    RegionEnum:
+      enum:
+      - თბილისი
+      - აჭარა
+      - გურია
+      - იმერეთი
+      - კახეთი
+      - მცხეთა-მთიანეთი
+      - რაჭა-ლეჩხუმი
+      - სამეგრელო-ზემო სვანეთი
+      - სამცხე-ჯავახეთი
+      - ქვემო ქართლი
+      - შიდა ქართლი
+      type: string
+      description: |-
+        * `თბილისი` - თბილისი
+        * `აჭარა` - აჭარა
+        * `გურია` - გურია
+        * `იმერეთი` - იმერეთი
+        * `კახეთი` - კახეთი
+        * `მცხეთა-მთიანეთი` - მცხეთა-მთიანეთი
+        * `რაჭა-ლეჩხუმი` - რაჭა-ლეჩხუმი
+        * `სამეგრელო-ზემო სვანეთი` - სამეგრელო-ზემო სვანეთი
+        * `სამცხე-ჯავახეთი` - სამცხე-ჯავახეთი
+        * `ქვემო ქართლი` - ქვემო ქართლი
+        * `შიდა ქართლი` - შიდა ქართლი
+    RegisterUser:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 150
+        lastName:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+        department:
+          $ref: '#/components/schemas/DepartmentEnum'
+      required:
+      - department
+      - email
+      - firstName
+      - lastName
+      - password
+    StatusEnum:
+      enum:
+      - OPEN
+      - CLOSED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `CLOSED` - Closed
+    Telephonegram:
+      type: object
+      properties:
+        telephonegramId:
+          type: integer
+        ticketId:
+          type: integer
+          readOnly: true
+        region:
+          $ref: '#/components/schemas/RegionEnum'
+        address:
+          type: string
+          maxLength: 255
+        roadSurface:
+          type: string
+        responsiblePerson:
+          type: string
+        contactPhone:
+          type: string
+        time:
+          type: string
+          maxLength: 100
+        sender:
+          type: string
+          maxLength: 255
+        sendTo:
+          type: string
+        comment:
+          type: string
+        author:
+          type: string
+          readOnly: true
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketComment'
+          readOnly: true
+        originDepartment:
+          type: string
+          readOnly: true
+        assignedDepartment:
+          type: string
+          readOnly: true
+        createdDate:
+          type: string
+          format: date-time
+          readOnly: true
+        lastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - address
+      - assignedDepartment
+      - author
+      - comments
+      - contactPhone
+      - createdDate
+      - lastUpdate
+      - originDepartment
+      - region
+      - responsiblePerson
+      - roadSurface
+      - sendTo
+      - sender
+      - telephonegramId
+      - ticketId
+      - time
+    Ticket:
+      type: object
+      properties:
+        ticketId:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        originDepartment:
+          type: string
+          readOnly: true
+        assignedDepartment:
+          type: string
+          readOnly: true
+        author:
+          type: string
+          readOnly: true
+        telephonegramId:
+          type: integer
+          nullable: true
+          readOnly: true
+        region:
+          type: string
+          nullable: true
+          readOnly: true
+        createdDate:
+          type: string
+          format: date-time
+          readOnly: true
+        lastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assignedDepartment
+      - author
+      - createdDate
+      - lastUpdate
+      - originDepartment
+      - region
+      - telephonegramId
+      - ticketId
+      - title
+    TicketAssignment:
+      type: object
+      properties:
+        ticketId:
+          type: integer
+          readOnly: true
+        originDepartment:
+          type: string
+          readOnly: true
+        assignedDepartment:
+          $ref: '#/components/schemas/AssignedDepartmentEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+      required:
+      - assignedDepartment
+      - originDepartment
+      - ticketId
+    TicketComment:
+      type: object
+      properties:
+        commentId:
+          type: integer
+          readOnly: true
+        ticketId:
+          type: integer
+          readOnly: true
+        comment:
+          type: string
+        author:
+          type: string
+          nullable: true
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - author
+      - commentId
+      - createdAt
+      - ticketId
+    TokenObtainPair:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - password
+      - refresh
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          writeOnly: true
+      required:
+      - access
+      - refresh
+    TokenValidate:
+      type: object
+      properties:
+        token:
+          type: string
+    UserList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        department:
+          type: string
+          nullable: true
+          readOnly: true
+        departmentName:
+          type: string
+          nullable: true
+          readOnly: true
+      required:
+      - department
+      - departmentName
+      - firstName
+      - id
+      - lastName
+    UserUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 150
+        lastName:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+        department:
+          $ref: '#/components/schemas/DepartmentEnum'
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

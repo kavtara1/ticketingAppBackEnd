@@ -1,7 +1,45 @@
 from django.urls import path
 
-from .views import health
+from .views import (
+    AssignedDepartmentTicketListAPIView,
+    ChangePasswordAPIView,
+    CurrentUserAPIView,
+    LoginAPIView,
+    RegionTicketListAPIView,
+    RegisterUserAPIView,
+    TelephonegramDetailAPIView,
+    TelephonegramListCreateAPIView,
+    TicketAssignmentUpdateAPIView,
+    TicketCloseAPIView,
+    TicketCommentListCreateAPIView,
+    TicketListAPIView,
+    TokenRefreshAPIView,
+    TokenValidateAPIView,
+    UserDetailAPIView,
+    UserListAPIView,
+    health,
+)
 
 urlpatterns = [
     path("health/", health, name="ticketing-health"),
+    path("auth/me/", CurrentUserAPIView.as_view(), name="auth-me"),
+    path("auth/register/", RegisterUserAPIView.as_view(), name="register-user"),
+    path("auth/login/", LoginAPIView.as_view(), name="auth-login"),
+    path("auth/change-password/", ChangePasswordAPIView.as_view(), name="auth-change-password"),
+    path("auth/token/refresh/", TokenRefreshAPIView.as_view(), name="auth-token-refresh"),
+    path("auth/token/validate/", TokenValidateAPIView.as_view(), name="auth-token-validate"),
+    path("tickets/", TicketListAPIView.as_view(), name="tickets-list"),
+    path("tickets/assigned/", AssignedDepartmentTicketListAPIView.as_view(), name="tickets-assigned-list"),
+    path("tickets/region/", RegionTicketListAPIView.as_view(), name="tickets-region-list"),
+    path("tickets/telephonegrams/", TelephonegramListCreateAPIView.as_view(), name="telephonegrams-list"),
+    path("tickets/<int:ticket_id>/assignment/", TicketAssignmentUpdateAPIView.as_view(), name="ticket-assignment-update"),
+    path("tickets/<int:ticket_id>/close/", TicketCloseAPIView.as_view(), name="ticket-close"),
+    path("tickets/<int:ticket_id>/comments/", TicketCommentListCreateAPIView.as_view(), name="ticket-comments"),
+    path(
+        "tickets/telephonegrams/<int:ticket_id>/",
+        TelephonegramDetailAPIView.as_view(),
+        name="telephonegrams-detail",
+    ),
+    path("users/", UserListAPIView.as_view(), name="users-list"),
+    path("users/<int:user_id>/", UserDetailAPIView.as_view(), name="users-detail"),
 ]

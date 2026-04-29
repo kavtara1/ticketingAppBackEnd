@@ -367,17 +367,6 @@ paths:
         required: true
       tags:
       - ticketing
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedTicket'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedTicket'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedTicket'
       security:
       - jwtAuth: []
       responses:
@@ -469,6 +458,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Telephonegram'
+          description: ''
+  /api/ticketing/tickets/audit-logs/:
+    get:
+      operationId: ticketing_tickets_audit_logs_retrieve
+      parameters:
+      - in: query
+        name: dateFrom
+        schema:
+          type: string
+          format: date
+        description: Optional start date filter in YYYY-MM-DD format.
+      - in: query
+        name: dateTo
+        schema:
+          type: string
+          format: date
+        description: Optional end date filter in YYYY-MM-DD format.
+      - in: query
+        name: ticketId
+        schema:
+          type: integer
+        description: Optional ticket ID filter.
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketAuditLog'
+          description: ''
+  /api/ticketing/tickets/audit-logs/export/:
+    get:
+      operationId: ticketing_tickets_audit_logs_export_retrieve
+      parameters:
+      - in: query
+        name: dateFrom
+        schema:
+          type: string
+          format: date
+        description: Optional start date filter in YYYY-MM-DD format.
+      - in: query
+        name: dateTo
+        schema:
+          type: string
+          format: date
+        description: Optional end date filter in YYYY-MM-DD format.
+      - in: query
+        name: ticketId
+        schema:
+          type: integer
+        description: Optional ticket ID filter.
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
           description: ''
   /api/ticketing/tickets/region/:
     get:
@@ -630,6 +684,13 @@ paths:
   /api/ticketing/users/:
     get:
       operationId: ticketing_users_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
       tags:
       - ticketing
       security:
@@ -639,9 +700,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/UserList'
+                $ref: '#/components/schemas/PaginatedUserListList'
           description: ''
   /api/ticketing/users/{user_id}/:
     get:
@@ -740,6 +799,22 @@ paths:
           description: No response body
 components:
   schemas:
+    ActionEnum:
+      enum:
+      - CREATED
+      - STATUS_CHANGED
+      - DEPARTMENT_CHANGED
+      - FIELD_UPDATED
+      - COMMENT_ADDED
+      - CLOSED
+      type: string
+      description: |-
+        * `CREATED` - Created
+        * `STATUS_CHANGED` - Status Changed
+        * `DEPARTMENT_CHANGED` - Department Changed
+        * `FIELD_UPDATED` - Field Updated
+        * `COMMENT_ADDED` - Comment Added
+        * `CLOSED` - Closed
     AssignedDepartmentEnum:
       enum:
       - ccsupportfix
@@ -772,6 +847,29 @@ components:
         * `ccsupportfix` - ccsupportfix
         * `Telephonegram` - Telephonegram
         * `Servicenet` - Servicenet
+    PaginatedUserListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserList'
     PatchedTelephonegram:
       type: object
       properties:
@@ -814,44 +912,6 @@ components:
           readOnly: true
         assignedDepartment:
           type: string
-          readOnly: true
-        createdDate:
-          type: string
-          format: date-time
-          readOnly: true
-        lastUpdate:
-          type: string
-          format: date-time
-          readOnly: true
-    PatchedTicket:
-      type: object
-      properties:
-        ticketId:
-          type: integer
-          readOnly: true
-        title:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-        status:
-          $ref: '#/components/schemas/StatusEnum'
-        originDepartment:
-          type: string
-          readOnly: true
-        assignedDepartment:
-          type: string
-          readOnly: true
-        author:
-          type: string
-          readOnly: true
-        telephonegramId:
-          type: integer
-          nullable: true
-          readOnly: true
-        region:
-          type: string
-          nullable: true
           readOnly: true
         createdDate:
           type: string
@@ -1081,6 +1141,45 @@ components:
       - assignedDepartment
       - originDepartment
       - ticketId
+    TicketAuditLog:
+      type: object
+      properties:
+        auditId:
+          type: integer
+          readOnly: true
+        ticketId:
+          type: integer
+          readOnly: true
+        ticketTitle:
+          type: string
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        performedBy:
+          type: string
+          nullable: true
+          readOnly: true
+        oldValue:
+          type: string
+          readOnly: true
+        newValue:
+          type: string
+          readOnly: true
+        details:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - auditId
+      - newValue
+      - oldValue
+      - performedBy
+      - ticketId
+      - ticketTitle
+      - timestamp
     TicketComment:
       type: object
       properties:

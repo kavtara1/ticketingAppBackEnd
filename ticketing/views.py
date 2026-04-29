@@ -1,6 +1,9 @@
-from django.http import JsonResponse
+from datetime import datetime, time
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema, extend_schema_view
 from rest_framework import permissions, status
 from rest_framework.generics import GenericAPIView, ListAPIView
@@ -14,13 +17,15 @@ from .serializers import (
     RegisterUserSerializer,
     TelephonegramSerializer,
     TicketAssignmentSerializer,
+    TicketAuditLogSerializer,
     TicketCommentSerializer,
     TicketSerializer,
     TokenValidateSerializer,
     UserListSerializer,
     UserUpdateSerializer,
 )
-from .models import Department, Telephonegram, Ticket, TicketStatus
+from .models import AuditAction, Department, Telephonegram, Ticket, TicketAuditLog, TicketStatus
+from .reporting import build_xlsx
 
 
 STATUS_QUERY_PARAMETER = OpenApiParameter(
@@ -31,6 +36,101 @@ STATUS_QUERY_PARAMETER = OpenApiParameter(
     enum=[value for value, _ in TicketStatus.choices],
     description="Optional ticket status filter.",
 )
+DATE_FROM_QUERY_PARAMETER = OpenApiParameter(
+    name="dateFrom",
+    type=OpenApiTypes.DATE,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description="Optional start date filter in YYYY-MM-DD format.",
+)
+DATE_TO_QUERY_PARAMETER = OpenApiParameter(
+    name="dateTo",
+    type=OpenApiTypes.DATE,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description="Optional end date filter in YYYY-MM-DD format.",
+)
+TICKET_ID_QUERY_PARAMETER = OpenApiParameter(
+    name="ticketId",
+    type=OpenApiTypes.INT,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description="Optional ticket ID filter.",
+)
+
+TELEPHONEGRAM_AUDIT_FIELDS = {
+    "telephonegram_id": "telephonegramId",
+    "region": "region",
+    "address": "address",
+    "road_surface": "roadSurface",
+    "responsible_person": "responsiblePerson",
+    "contact_phone": "contactPhone",
+    "time": "time",
+    "sender": "sender",
+    "send_to": "sendTo",
+    "comment": "comment",
+}
+
+
+def _create_audit_log(ticket, action, performed_by, old_value="", new_value="", details=""):
+    TicketAuditLog.objects.create(
+        ticket=ticket,
+        action=action,
+        performed_by=performed_by,
+        old_value=old_value,
+        new_value=new_value,
+        details=details,
+    )
+
+
+def _telephonegram_snapshot(telephonegram):
+    return {field: getattr(telephonegram, field) for field in TELEPHONEGRAM_AUDIT_FIELDS}
+
+
+def _parse_date_range(request):
+    date_from_param = request.query_params.get("dateFrom")
+    date_to_param = request.query_params.get("dateTo")
+
+    start = None
+    end = None
+
+    if date_from_param:
+        parsed = parse_datetime(date_from_param)
+        if parsed is not None:
+            start = parsed
+        else:
+            parsed_date = parse_date(date_from_param)
+            if parsed_date is None:
+                return None, None, Response(
+                    {"detail": "dateFrom must be a valid ISO date or datetime."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            start = datetime.combine(parsed_date, time.min)
+
+    if date_to_param:
+        parsed = parse_datetime(date_to_param)
+        if parsed is not None:
+            end = parsed
+        else:
+            parsed_date = parse_date(date_to_param)
+            if parsed_date is None:
+                return None, None, Response(
+                    {"detail": "dateTo must be a valid ISO date or datetime."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            end = datetime.combine(parsed_date, time.max)
+
+    if start is not None and timezone.is_naive(start):
+        start = timezone.make_aware(start, timezone.get_current_timezone())
+    if end is not None and timezone.is_naive(end):
+        end = timezone.make_aware(end, timezone.get_current_timezone())
+    if start is not None and end is not None and start > end:
+        return None, None, Response(
+            {"detail": "dateFrom must be less than or equal to dateTo."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return start, end, None
 
 
 def health(request):
@@ -205,6 +305,12 @@ class TelephonegramListCreateAPIView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         telephonegram = serializer.save()
+        TicketAuditLog.objects.create(
+            ticket=telephonegram.ticket,
+            action=AuditAction.CREATED,
+            performed_by=request.user,
+            details="Telephonegram ticket created.",
+        )
         response_serializer = self.get_serializer(telephonegram)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -247,9 +353,21 @@ class TelephonegramDetailAPIView(GenericAPIView):
     )
     def patch(self, request, ticket_id):
         telephonegram = self.get_object()
+        before = _telephonegram_snapshot(telephonegram)
         serializer = self.get_serializer(telephonegram, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated = serializer.save()
+        after = _telephonegram_snapshot(updated)
+        for field_name, label in TELEPHONEGRAM_AUDIT_FIELDS.items():
+            if before[field_name] != after[field_name]:
+                _create_audit_log(
+                    ticket=updated.ticket,
+                    action=AuditAction.FIELD_UPDATED,
+                    performed_by=request.user,
+                    old_value=before[field_name],
+                    new_value=after[field_name],
+                    details=f"{label} updated.",
+                )
         response_serializer = self.get_serializer(updated)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
@@ -413,6 +531,13 @@ class TicketCommentListCreateAPIView(GenericAPIView):
         )
         serializer.is_valid(raise_exception=True)
         comment_entry = serializer.save()
+        _create_audit_log(
+            ticket=ticket,
+            action=AuditAction.COMMENT_ADDED,
+            performed_by=request.user,
+            new_value=comment_entry.comment,
+            details="Comment added.",
+        )
         response_serializer = self.get_serializer(comment_entry)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -424,9 +549,29 @@ class TicketAssignmentUpdateAPIView(GenericAPIView):
 
     def patch(self, request, ticket_id):
         ticket = get_object_or_404(Ticket.objects.all(), pk=ticket_id)
+        previous_department = ticket.assigned_department
+        previous_status = ticket.status
         serializer = self.get_serializer(ticket, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         ticket = serializer.save()
+        if previous_department != ticket.assigned_department:
+            _create_audit_log(
+                ticket=ticket,
+                action=AuditAction.DEPARTMENT_CHANGED,
+                performed_by=request.user,
+                old_value=previous_department,
+                new_value=ticket.assigned_department,
+                details="Assigned department changed.",
+            )
+        if previous_status != ticket.status:
+            _create_audit_log(
+                ticket=ticket,
+                action=AuditAction.STATUS_CHANGED,
+                performed_by=request.user,
+                old_value=previous_status,
+                new_value=ticket.status,
+                details="Status changed during reassignment.",
+            )
         serializer = self.get_serializer(ticket)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -437,6 +582,7 @@ class TicketCloseAPIView(GenericAPIView):
     lookup_url_kwarg = "ticket_id"
 
     @extend_schema(
+        request=None,
         parameters=[
             OpenApiParameter(
                 name="ticket_id",
@@ -449,7 +595,128 @@ class TicketCloseAPIView(GenericAPIView):
     )
     def patch(self, request, ticket_id):
         ticket = get_object_or_404(Ticket.objects.all(), pk=ticket_id)
+        previous_status = ticket.status
         ticket.status = TicketStatus.CLOSED
-        ticket.save(update_fields=["status", "updated_at"])
+        ticket.finalized_at = timezone.now()
+        ticket.save(update_fields=["status", "finalized_at", "updated_at"])
+        if previous_status != ticket.status:
+            _create_audit_log(
+                ticket=ticket,
+                action=AuditAction.CLOSED,
+                performed_by=request.user,
+                old_value=previous_status,
+                new_value=ticket.status,
+                details="Ticket closed.",
+            )
         response_serializer = self.get_serializer(ticket)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema_view(
+    get=extend_schema(
+        parameters=[
+            TICKET_ID_QUERY_PARAMETER,
+            DATE_FROM_QUERY_PARAMETER,
+            DATE_TO_QUERY_PARAMETER,
+        ]
+    )
+)
+class TicketAuditLogListAPIView(GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TicketAuditLogSerializer
+    queryset = TicketAuditLog.objects.select_related("ticket", "performed_by").all()
+
+    def get_queryset(self):
+        queryset = self.queryset
+        ticket_id = self.request.query_params.get("ticketId")
+        if ticket_id:
+            queryset = queryset.filter(ticket_id=ticket_id)
+
+        start, end, error_response = _parse_date_range(self.request)
+        self._date_range_error = error_response
+        if error_response is not None:
+            return queryset.none()
+        if start is not None:
+            queryset = queryset.filter(timestamp__gte=start)
+        if end is not None:
+            queryset = queryset.filter(timestamp__lte=end)
+        return queryset
+
+    def get(self, request):
+        self._date_range_error = None
+        queryset = self.get_queryset()
+        if self._date_range_error is not None:
+            return self._date_range_error
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema_view(
+    get=extend_schema(
+        parameters=[
+            TICKET_ID_QUERY_PARAMETER,
+            DATE_FROM_QUERY_PARAMETER,
+            DATE_TO_QUERY_PARAMETER,
+        ]
+    )
+)
+class TicketAuditLogExportAPIView(GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TicketAuditLogSerializer
+    queryset = TicketAuditLog.objects.select_related("ticket", "performed_by").all()
+
+    def get_queryset(self):
+        queryset = self.queryset
+        ticket_id = self.request.query_params.get("ticketId")
+        if ticket_id:
+            queryset = queryset.filter(ticket_id=ticket_id)
+
+        start, end, error_response = _parse_date_range(self.request)
+        self._date_range_error = error_response
+        if error_response is not None:
+            return queryset.none()
+        if start is not None:
+            queryset = queryset.filter(timestamp__gte=start)
+        if end is not None:
+            queryset = queryset.filter(timestamp__lte=end)
+        return queryset
+
+    @extend_schema(request=None, responses={200: OpenApiTypes.BINARY})
+    def get(self, request):
+        self._date_range_error = None
+        audit_logs = self.get_queryset()
+        if self._date_range_error is not None:
+            return self._date_range_error
+
+        headers = [
+            "Ticket ID",
+            "Ticket Title",
+            "Action",
+            "Performed By",
+            "Old Value",
+            "New Value",
+            "Details",
+            "Timestamp",
+        ]
+        rows = [
+            [
+                entry.ticket_id,
+                entry.ticket.title,
+                entry.action,
+                entry.performed_by.email if entry.performed_by else "",
+                entry.old_value,
+                entry.new_value,
+                entry.details,
+                timezone.localtime(entry.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
+            ]
+            for entry in audit_logs
+        ]
+
+        workbook = build_xlsx(headers, rows)
+        response = HttpResponse(
+            workbook,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        filename = f"ticket-audit-report-{timezone.localdate().isoformat()}.xlsx"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response

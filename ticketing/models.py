@@ -99,6 +99,44 @@ class Telephonegram(models.Model):
         return f"Telephonegram #{self.telephonegram_id} for ticket #{self.ticket_id}"
 
 
+class AuditAction(models.TextChoices):
+    CREATED = "CREATED", "Created"
+    STATUS_CHANGED = "STATUS_CHANGED", "Status Changed"
+    DEPARTMENT_CHANGED = "DEPARTMENT_CHANGED", "Department Changed"
+    FIELD_UPDATED = "FIELD_UPDATED", "Field Updated"
+    COMMENT_ADDED = "COMMENT_ADDED", "Comment Added"
+    CLOSED = "CLOSED", "Closed"
+
+
+class TicketAuditLog(models.Model):
+    ticket = models.ForeignKey(
+        "Ticket",
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+    )
+    action = models.CharField(max_length=30, choices=AuditAction.choices, db_index=True)
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_actions",
+    )
+    old_value = models.TextField(blank=True, default="")
+    new_value = models.TextField(blank=True, default="")
+    details = models.TextField(blank=True, default="")
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["timestamp"]
+        indexes = [
+            models.Index(fields=["ticket", "timestamp"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] Ticket #{self.ticket_id} — {self.action}"
+
+
 class TicketComment(models.Model):
     ticket = models.ForeignKey(
         Ticket,

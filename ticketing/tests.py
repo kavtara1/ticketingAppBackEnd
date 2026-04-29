@@ -1,10 +1,24 @@
+from datetime import timedelta
+from io import BytesIO
+from zipfile import ZipFile
+
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
-from .models import Department, Telephonegram, Ticket, TicketComment, TicketStatus, UserDepartment
+from .models import (
+    AuditAction,
+    Department,
+    Telephonegram,
+    Ticket,
+    TicketAuditLog,
+    TicketComment,
+    TicketStatus,
+    UserDepartment,
+)
 
 
 TBILISI = "\u10d7\u10d1\u10d8\u10da\u10d8\u10e1\u10d8"
@@ -101,6 +115,8 @@ class TelephonegramAPITests(APITestCase):
         self.assertEqual(telephonegram.ticket.status, TicketStatus.OPEN)
         self.assertEqual(telephonegram.ticket.created_by, self.user)
         self.assertEqual(telephonegram.ticket.description, "Urgent follow-up required")
+        self.assertEqual(telephonegram.ticket.audit_logs.count(), 1)
+        self.assertEqual(telephonegram.ticket.audit_logs.first().action, AuditAction.CREATED)
 
     def test_patch_telephonegram_updates_comment_and_ticket_timestamp_source(self):
         ticket = Ticket.objects.create(
@@ -140,6 +156,9 @@ class TelephonegramAPITests(APITestCase):
         self.assertEqual(telephonegram.comment, "Updated comment")
         self.assertEqual(ticket.title, "Telephonegram: Updated Address")
         self.assertEqual(ticket.description, "Updated comment")
+        self.assertEqual(ticket.audit_logs.count(), 2)
+        self.assertEqual(ticket.audit_logs.first().details, "address updated.")
+        self.assertEqual(ticket.audit_logs.last().details, "comment updated.")
 
     def test_get_telephonegram_by_ticket_id_includes_ticket_comments(self):
         ticket = Ticket.objects.create(
@@ -276,6 +295,8 @@ class TelephonegramAPITests(APITestCase):
         comment_entry = TicketComment.objects.get(ticket=ticket)
         self.assertEqual(comment_entry.comment, "New workflow comment")
         self.assertEqual(comment_entry.created_by, self.user)
+        self.assertEqual(ticket.audit_logs.count(), 1)
+        self.assertEqual(ticket.audit_logs.first().action, AuditAction.COMMENT_ADDED)
 
     def test_ticket_comments_can_be_listed(self):
         ticket = Ticket.objects.create(
@@ -327,6 +348,8 @@ class TelephonegramAPITests(APITestCase):
         self.assertEqual(ticket.status, TicketStatus.OPEN)
         self.assertEqual(response.data["assignedDepartment"], Department.TELEPHONEGRAM)
         self.assertEqual(response.data["status"], TicketStatus.OPEN)
+        self.assertEqual(ticket.audit_logs.count(), 1)
+        self.assertEqual(ticket.audit_logs.first().action, AuditAction.DEPARTMENT_CHANGED)
 
     def test_ticket_assignment_endpoint_can_send_ticket_to_servicenet(self):
         ticket = Ticket.objects.create(
@@ -350,6 +373,9 @@ class TelephonegramAPITests(APITestCase):
         self.assertEqual(ticket.status, TicketStatus.OPEN)
         self.assertEqual(response.data["assignedDepartment"], Department.SERVICENET)
         self.assertEqual(response.data["status"], TicketStatus.OPEN)
+        self.assertEqual(ticket.audit_logs.count(), 2)
+        self.assertEqual(ticket.audit_logs.first().action, AuditAction.DEPARTMENT_CHANGED)
+        self.assertEqual(ticket.audit_logs.last().action, AuditAction.STATUS_CHANGED)
 
     def test_ticket_can_be_closed_by_close_endpoint(self):
         ticket = Ticket.objects.create(
@@ -369,6 +395,9 @@ class TelephonegramAPITests(APITestCase):
         ticket.refresh_from_db()
         self.assertEqual(ticket.status, TicketStatus.CLOSED)
         self.assertEqual(response.data["status"], TicketStatus.CLOSED)
+        self.assertIsNotNone(ticket.finalized_at)
+        self.assertEqual(ticket.audit_logs.count(), 1)
+        self.assertEqual(ticket.audit_logs.first().action, AuditAction.CLOSED)
 
     def test_all_tickets_endpoint_filters_by_department(self):
         first_ticket = Ticket.objects.create(
@@ -670,3 +699,111 @@ class TelephonegramAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["ticketId"], open_ticket.id)
+
+
+class TicketAuditReportAPITests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="audit@example.com",
+            email="audit@example.com",
+            password="StrongPass123!",
+        )
+        UserDepartment.objects.create(user=self.user, department=Department.TELEPHONEGRAM)
+        self.client.force_authenticate(self.user)
+
+    def test_audit_log_list_can_filter_by_ticket_and_date(self):
+        first_ticket = Ticket.objects.create(
+            title="Audit First",
+            description="First",
+            created_by=self.user,
+            origin_department=Department.TELEPHONEGRAM,
+            assigned_department=Department.SERVICENET,
+        )
+        second_ticket = Ticket.objects.create(
+            title="Audit Second",
+            description="Second",
+            created_by=self.user,
+            origin_department=Department.TELEPHONEGRAM,
+            assigned_department=Department.SERVICENET,
+        )
+        older_entry = TicketAuditLog.objects.create(
+            ticket=first_ticket,
+            action=AuditAction.CREATED,
+            performed_by=self.user,
+            details="Older entry",
+        )
+        current_entry = TicketAuditLog.objects.create(
+            ticket=first_ticket,
+            action=AuditAction.COMMENT_ADDED,
+            performed_by=self.user,
+            new_value="Current comment",
+            details="Current entry",
+        )
+        TicketAuditLog.objects.create(
+            ticket=second_ticket,
+            action=AuditAction.CLOSED,
+            performed_by=self.user,
+            details="Other ticket entry",
+        )
+        TicketAuditLog.objects.filter(pk=older_entry.pk).update(
+            timestamp=timezone.now() - timedelta(days=7)
+        )
+        TicketAuditLog.objects.filter(pk=current_entry.pk).update(timestamp=timezone.now())
+
+        response = self.client.get(
+            reverse("ticket-audit-log-list"),
+            {
+                "ticketId": first_ticket.id,
+                "dateFrom": (timezone.localdate() - timedelta(days=1)).isoformat(),
+                "dateTo": (timezone.localdate() + timedelta(days=1)).isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["ticketId"], first_ticket.id)
+        self.assertEqual(response.data[0]["action"], AuditAction.COMMENT_ADDED)
+
+    def test_audit_log_export_returns_excel_file(self):
+        ticket = Ticket.objects.create(
+            title="Export Ticket",
+            description="Export",
+            created_by=self.user,
+            origin_department=Department.TELEPHONEGRAM,
+            assigned_department=Department.SERVICENET,
+        )
+        TicketAuditLog.objects.create(
+            ticket=ticket,
+            action=AuditAction.CREATED,
+            performed_by=self.user,
+            details="Exported row",
+        )
+
+        response = self.client.get(
+            reverse("ticket-audit-log-export"),
+            {
+                "dateFrom": (timezone.localdate() - timedelta(days=1)).isoformat(),
+                "dateTo": (timezone.localdate() + timedelta(days=1)).isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn(".xlsx", response["Content-Disposition"])
+
+        with ZipFile(BytesIO(response.content)) as archive:
+            sheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
+
+        self.assertIn("Export Ticket", sheet_xml)
+        self.assertIn("Exported row", sheet_xml)
+
+    def test_audit_log_list_rejects_invalid_date_range(self):
+        response = self.client.get(
+            reverse("ticket-audit-log-list"),
+            {"dateFrom": "2026-04-30", "dateTo": "2026-04-29"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

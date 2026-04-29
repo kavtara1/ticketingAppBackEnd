@@ -10,6 +10,7 @@ from .models import (
     Region,
     Telephonegram,
     Ticket,
+    TicketAuditLog,
     TicketComment,
     TicketStatus,
     UserDepartment,
@@ -283,3 +284,33 @@ class TicketAssignmentSerializer(serializers.ModelSerializer):
         instance.status = TicketStatus.OPEN
         instance.save(update_fields=["assigned_department", "status", "updated_at"])
         return instance
+
+
+class TicketAuditLogSerializer(serializers.ModelSerializer):
+    auditId = serializers.IntegerField(source="id", read_only=True)
+    ticketId = serializers.IntegerField(source="ticket_id", read_only=True)
+    ticketTitle = serializers.CharField(source="ticket.title", read_only=True)
+    performedBy = serializers.SerializerMethodField()
+    oldValue = serializers.CharField(source="old_value", read_only=True)
+    newValue = serializers.CharField(source="new_value", read_only=True)
+    timestamp = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = TicketAuditLog
+        fields = (
+            "auditId",
+            "ticketId",
+            "ticketTitle",
+            "action",
+            "performedBy",
+            "oldValue",
+            "newValue",
+            "details",
+            "timestamp",
+        )
+
+    def get_performedBy(self, obj) -> Optional[str]:
+        user = obj.performed_by
+        if user is None:
+            return None
+        return user.email or user.username
